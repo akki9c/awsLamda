@@ -1,0 +1,76 @@
+'use strict';
+
+console.log('Loading event');
+
+var http = require('http');
+var queryString = require('querystring');
+var fs = require('fs');
+
+// Lambda function:
+exports.handler = function(event, context) {
+
+    console.log('Running event');
+    //console.log('Received event:', JSON.stringify(event, null, 2));
+    var resp = event;
+    //console.log('start request to ' + event.url);
+    getDbData(resp, function (status) { context.done(null, status); }); 
+    event.Records.forEach((record) => {
+        //console.log(record.eventID);
+        //console.log(record.eventName);
+        //console.log('DynamoDB Record: %j', record.dynamodb);
+    });
+};
+
+function getDbData(resp, completedCallback) {
+    // The SMS message to send
+    var message = JSON.stringify(resp);
+    //var messageString = queryString.stringify(message);
+    var messageString = message.toString();
+    var buffer = new Buffer(messageString,"utf-8");
+    // Options and headers for the HTTP request   
+    var options = {
+        host: 'example.com',
+        port: '80',
+        path: '/path/syncAwsDynamo',
+        method: 'POST',
+        headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': buffer.byteLength,
+                    //'Authorization': 'Basic ' + new Buffer('username' + ':' + 'password').toString('base64')
+                 },
+        data: message,
+        
+        
+    };
+    
+    // Setup the HTTP request
+    var req = http.request(options, function (res) {
+        console.log(options);
+        res.setEncoding('utf-8');
+        // Collect response data as it comes back.
+        var responseString = '';
+        res.on('data', function (data) {
+            responseString += data;
+        });
+        
+        res.on('success', function () {
+            console.log('Request successfull');
+        });
+        
+        res.on('end', function () {
+            console.log('Myserver Response: ' + responseString);
+            completedCallback('API request sent successfully.');
+        });
+    });
+    
+    // Handler for HTTP request errors.
+    req.on('error', function (e) {
+        console.error('HTTP error: ' + e.message);
+        completedCallback('API request completed with error(s).');
+    });
+    
+    console.log('Myserver API call: ' + messageString);
+    req.write(messageString);
+    req.end();
+
+}
